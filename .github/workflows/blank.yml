@@ -25,6 +25,13 @@ jobs:
         libssl-dev python3 python3-pyelftools zlib1g-dev \
         gcc-multilib g++-multilib pkgconf libtool lrzsz unzip wget rsync
 
+    # --- 新增步骤：安装 Node.js ---
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    # -------------------------------
+
     - name: Clone ImmortalWrt Source
       run: |
         git clone -b openwrt-24.10 https://github.com/immortalwrt/immortalwrt.git
@@ -35,8 +42,8 @@ jobs:
     - name: Add Aurora Theme & QModem
       run: |
         cd immortalwrt
-        # 拉取 Aurora 主题 (使用 git:// 协议避免身份验证问题)
-        git clone git://github.com/kenzok8/luci-theme-aurora.git package/luci-theme-aurora
+        # 拉取 Aurora 主题 (使用正确的仓库地址)
+        git clone https://github.com/ChenLing93/luci-theme-aurora.git package/luci-theme-aurora
         # 拉取 QModem 5G 模组管理
         git clone https://github.com/FUjr/QModem.git package/QModem
 
@@ -90,6 +97,6 @@ jobs:
           - 分支：openwrt-24.10
           - 文件系统：SquashFS
           - 包含插件：Aurora 主题, QModem 5G 模组管理, UPnP
-        generate_release_notes: true # 自动生成版本更新说明
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
