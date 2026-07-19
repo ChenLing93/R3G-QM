@@ -35,8 +35,8 @@ jobs:
     - name: Add Aurora Theme & QModem
       run: |
         cd immortalwrt
-        # 拉取 Aurora 主题
-        git clone https://github.com/kenzok8/luci-theme-aurora.git package/luci-theme-aurora
+        # 拉取 Aurora 主题 (使用 git:// 协议避免身份验证问题)
+        git clone git://github.com/kenzok8/luci-theme-aurora.git package/luci-theme-aurora
         # 拉取 QModem 5G 模组管理
         git clone https://github.com/FUjr/QModem.git package/QModem
 
