@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04 # 升级运行环境到 Ubuntu 24.04
     permissions:
       contents: write # 赋予写入权限，以便创建 Release 和上传文件
 
@@ -25,12 +25,12 @@ jobs:
         libssl-dev python3 python3-pyelftools zlib1g-dev \
         gcc-multilib g++-multilib pkgconf libtool lrzsz unzip wget rsync
 
-    # --- 新增步骤：安装 Node.js ---
+    # --- 安装 Node.js 24 ---
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '24'
-    # -------------------------------
+    # -----------------------
 
     - name: Clone ImmortalWrt Source
       run: |
@@ -66,6 +66,17 @@ jobs:
         CONFIG_PACKAGE_luci-i18n-qmodem-zh-cn=y
         CONFIG_PACKAGE_luci-app-upnp=y
         CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y
+
+        # USB 核心与存储驱动
+        CONFIG_PACKAGE_kmod-usb-core=y
+        CONFIG_PACKAGE_kmod-usb2=y
+        CONFIG_PACKAGE_kmod-usb3=y
+        CONFIG_PACKAGE_kmod-usb-storage=y
+        CONFIG_PACKAGE_kmod-usb-storage-uas=y
+        # USB 串口驱动 (QModem 5G 模组通常需要)
+        CONFIG_PACKAGE_kmod-usb-serial=y
+        CONFIG_PACKAGE_kmod-usb-serial-option=y
+        CONFIG_PACKAGE_kmod-usb-serial-wwan=y
         EOF
         make defconfig
 
@@ -96,7 +107,7 @@ jobs:
           - 设备：小米 R3G
           - 分支：openwrt-24.10
           - 文件系统：SquashFS
-          - 包含插件：Aurora 主题, QModem 5G 模组管理, UPnP
+          - 包含插件：Aurora 主题, QModem 5G 模组管理, UPnP等自用插件 纯用于小米R3G QModem的拨号路由
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
