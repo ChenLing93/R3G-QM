@@ -70,18 +70,37 @@ jobs:
         name: ImmortalWrt-Xiaomi-R3G-SquashFS
         path: immortalwrt/bin/targets/ramips/mt7621/*.bin
 
+    # 准备发布文件
+    - name: Prepare Release Assets
+      run: |
+        mkdir -p release_assets
+        cp immortalwrt/bin/targets/ramips/mt7621/*.bin release_assets/ || echo "No .bin files found in the specified directory."
+
+    # 获取当前时间并创建 GitHub Release
     - name: Create GitHub Release
+      id: get_time # 为这个步骤指定一个 ID，方便后续引用
+      run: |
+        # 获取北京时间（UTC+8），格式如：2026-07-20 10:58:58
+        BUILD_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
+        
+        # 将时间写入 GitHub Actions 的输出变量中
+        echo "build_time=$BUILD_TIME" >> $GITHUB_OUTPUT
+
+    # 使用获取到的时间创建 Release
+    - name: Publish Release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: |
-          immortalwrt/bin/targets/ramips/mt7621/*.bin
+        files: release_assets/*.bin
+        # 使用 ${{ steps.get_time.outputs.build_time }} 引用刚才生成的时间
         body: |
-          自动编译的 ImmortalWrt 固件
-          - 设备：小米 R3G
-          - 分支：openwrt-24.10
-          - 文件系统：SquashFS
-          - 包含插件：Aurora 主题, QModem 5G 模组管理, UPnP, WeChatPush
+          🚀 自动编译的 ImmortalWrt 固件
+          
+          - **编译时间**：${{ steps.get_time.outputs.build_time }} (北京时间)
+          - **设备型号**：小米 R3G
+          - **源码分支**：openwrt-24.10
+          - **文件系统**：SquashFS
+          - **包含插件**：Aurora 主题, QModem 5G 模组管理, UPnP, WeChatPush
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
