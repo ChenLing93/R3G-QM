@@ -13,10 +13,10 @@ jobs:
       contents: write # 赋予写入权限，以便创建 Release 和上传文件
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+    - name: 检出仓库代码 (Checkout Repository)
+      uses: actions/checkout@v5
 
-    - name: Install Dependencies
+    - name: 安装系统依赖 (Install Dependencies)
       run: |
         sudo apt update -y
         sudo apt full-upgrade -y
@@ -25,19 +25,19 @@ jobs:
         libssl-dev python3 python3-pyelftools zlib1g-dev \
         gcc-multilib g++-multilib pkgconf libtool lrzsz unzip wget rsync
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - name: 配置 Node.js 环境 (Setup Node.js)
+      uses: actions/setup-node@v6
       with:
         node-version: '24'
 
-    - name: Clone ImmortalWrt Source
+    - name: 克隆 ImmortalWrt 源码 (Clone ImmortalWrt Source)
       run: |
         git clone -b openwrt-24.10 https://github.com/immortalwrt/immortalwrt.git
         cd immortalwrt
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    - name: Add Aurora Theme & QModem
+    - name: 添加 Aurora 主题与 QModem 插件 (Add Aurora Theme & QModem)
       run: |
         cd immortalwrt
         # 拉取 Aurora 主题
@@ -45,54 +45,46 @@ jobs:
         # 拉取 QModem 5G 模组管理
         git clone https://github.com/FUjr/QModem.git package/QModem
 
-    # --- 修改点：直接复制外置的 .config 文件 ---
-    - name: Load Custom Configure
+    - name: 加载自定义配置文件 (Load Custom Configure)
       run: |
         # 将仓库根目录下的 .config 复制到源码目录
         cp .config immortalwrt/.config
         cd immortalwrt
         make defconfig
-    # -----------------------------------------
 
-    - name: Download Packages
+    - name: 下载依赖包 (Download Packages)
       run: |
         cd immortalwrt
         make download -j$(nproc)
 
-    - name: Compile Firmware
+    - name: 开始编译固件 (Compile Firmware)
       run: |
         cd immortalwrt
         make -j$(nproc) V=s
 
-    - name: Upload Firmware to Artifacts
+    - name: 上传固件至 Artifacts (Upload Firmware to Artifacts)
       uses: actions/upload-artifact@v4
       with:
         name: ImmortalWrt-Xiaomi-R3G-SquashFS
         path: immortalwrt/bin/targets/ramips/mt7621/*.bin
 
-    # 准备发布文件
-    - name: Prepare Release Assets
+    - name: 准备发布文件 (Prepare Release Assets)
       run: |
         mkdir -p release_assets
         cp immortalwrt/bin/targets/ramips/mt7621/*.bin release_assets/ || echo "No .bin files found in the specified directory."
 
-    # 获取当前时间并创建 GitHub Release
-    - name: Create GitHub Release
-      id: get_time # 为这个步骤指定一个 ID，方便后续引用
+    - name: 获取当前编译时间 (Get Build Time)
+      id: get_time
       run: |
-        # 获取北京时间（UTC+8），格式如：2026-07-20 10:58:58
         BUILD_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
-        
-        # 将时间写入 GitHub Actions 的输出变量中
         echo "build_time=$BUILD_TIME" >> $GITHUB_OUTPUT
 
-    # 使用获取到的时间创建 Release
-    - name: Publish Release
+    - name: 发布至 GitHub Releases (Publish Release)
       uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
+      # 修改条件：如果是打标签，或者是手动触发的，都执行发布操作
+      if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
       with:
         files: release_assets/*.bin
-        # 使用 ${{ steps.get_time.outputs.build_time }} 引用刚才生成的时间
         body: |
           🚀 自动编译的 ImmortalWrt 固件
           
