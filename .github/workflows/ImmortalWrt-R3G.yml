@@ -37,14 +37,6 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    - name: 添加 Aurora 主题与 QModem 插件 (Add Aurora Theme & QModem)
-      run: |
-        cd immortalwrt
-        # 拉取 Aurora 主题
-        git clone https://github.com/ChenLing93/luci-theme-aurora.git package/luci-theme-aurora
-        # 拉取 QModem 5G 模组管理
-        git clone https://github.com/FUjr/QModem.git package/QModem
-
     - name: 加载自定义配置文件 (Load Custom Configure)
       run: |
         # 将仓库根目录下的 .config 复制到源码目录
@@ -52,10 +44,12 @@ jobs:
         cd immortalwrt
         make defconfig
 
+    # --- 万能自定义步骤：调用 diy.sh ---
     - name: 执行自定义 DIY 脚本 (Run DIY Script)
       run: |
         chmod +x diy.sh
         ./diy.sh
+    # ----------------------------------
 
     - name: 下载依赖包 (Download Packages)
       run: |
@@ -102,7 +96,7 @@ jobs:
           | :--- | :--- |
           | 📅 **编译时间** | ${{ steps.get_time.outputs.build_time }} (北京时间) |
           | 📱 **设备型号** | 小米路由器 3G (Xiaomi R3G) |
-          | 🌿 **源码分支** | `openwrt-24.10` |
+          | 🌿 **源码分支** | `OpenWrt-24.10` |
           | 💾 **文件系统** | SquashFS |
           
           ### 🧩 内置特色插件
