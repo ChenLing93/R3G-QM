@@ -81,8 +81,8 @@ jobs:
           files: release_assets/*.bin
           tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v-{0}', github.run_id) || github.ref_name }}
           name: ${{ github.event_name == 'workflow_dispatch' && format('手动编译版 #{0}', github.run_id) || github.ref_name }}
-          # 核心修复：使用单引号包裹整个 body 内容，防止 YAML 解析器误报 ${{ 未闭合
-          body: '
+          # 核心修复：使用标准的多行文本语法 |，并在需要变量的地方使用 ${{ }} 注入
+          body: |
             🚀 **ImmortalWrt 小米 R3G 自动编译固件**
             
             本固件基于 ImmortalWrt 官方源码自动编译，专为小米路由器 3G 定制，开箱即用。
@@ -109,7 +109,6 @@ jobs:
             
             ---
             *此版本由 GitHub Actions 自动构建，如有疑问请提交 Issue。*
-          '
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
