@@ -13,116 +13,101 @@ jobs:
       contents: write # 赋予写入权限，以便创建 Release 和上传文件
 
     steps:
-    - name: 检出仓库代码 (Checkout Repository)
-      uses: actions/checkout@v5
+      - name: 检出仓库代码 (Checkout Repository)
+        uses: actions/checkout@v4
 
-    - name: 安装系统依赖 (Install Dependencies)
-      run: |
-        sudo apt update -y
-        sudo apt full-upgrade -y
-        # 使用 ImmortalWrt 官方推荐的依赖列表，更加完整
-        sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
-          bzip2 ccache cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib \
-          g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev \
-          libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev \
-          libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano \
-          ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils \
-          python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs \
-          upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
+      - name: 安装系统依赖 (Install Dependencies)
+        run: |
+          sudo apt update -y
+          sudo apt full-upgrade -y
+          sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+            bzip2 ccache cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib \
+            g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev \
+            libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev \
+            libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano \
+            ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils \
+            python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs \
+            upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
 
-    - name: 配置 Node.js 环境 (Setup Node.js)
-      uses: actions/setup-node@v6
-      with:
-        node-version: '24'
+      - name: 克隆 ImmortalWrt 源码 (Clone ImmortalWrt Source)
+        run: |
+          git clone -b openwrt-24.10 https://github.com/immortalwrt/immortalwrt.git
+          cd immortalwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
 
-    - name: 克隆 ImmortalWrt 源码 (Clone ImmortalWrt Source)
-      run: |
-        git clone -b openwrt-24.10 https://github.com/immortalwrt/immortalwrt.git
-        cd immortalwrt
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
+      - name: 加载自定义配置文件 (Load Custom Configure)
+        run: |
+          cp .config immortalwrt/.config
+          cd immortalwrt
+          make defconfig
 
-    - name: 加载自定义配置文件 (Load Custom Configure)
-      run: |
-        # 将仓库根目录下的 .config 复制到源码目录
-        cp .config immortalwrt/.config
-        cd immortalwrt
-        make defconfig
+      - name: 执行自定义 DIY 脚本 (Run DIY Script)
+        run: |
+          chmod +x diy.sh
+          ./diy.sh
 
-    # --- 万能自定义步骤：调用 diy.sh ---
-    - name: 执行自定义 DIY 脚本 (Run DIY Script)
-      run: |
-        chmod +x diy.sh
-        ./diy.sh
-    # ----------------------------------
+      - name: 下载依赖包 (Download Packages)
+        run: |
+          cd immortalwrt
+          make download -j$(nproc)
 
-    - name: 下载依赖包 (Download Packages)
-      run: |
-        cd immortalwrt
-        make download -j$(nproc)
+      - name: 开始编译固件 (Compile Firmware)
+        run: |
+          cd immortalwrt
+          make -j$(nproc) V=s
 
-    - name: 开始编译固件 (Compile Firmware)
-      run: |
-        cd immortalwrt
-        make -j$(nproc) V=s
+      - name: 上传固件至 Artifacts (Upload Firmware to Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ImmortalWrt-Xiaomi-R3G-SquashFS
+          path: immortalwrt/bin/targets/ramips/mt7621/*.bin
 
-    - name: 上传固件至 Artifacts (Upload Firmware to Artifacts)
-      uses: actions/upload-artifact@v4
-      with:
-        name: ImmortalWrt-Xiaomi-R3G-SquashFS
-        path: immortalwrt/bin/targets/ramips/mt7621/*.bin
+      - name: 准备发布文件 (Prepare Release Assets)
+        run: |
+          mkdir -p release_assets
+          cp immortalwrt/bin/targets/ramips/mt7621/*.bin release_assets/ || echo "No .bin files found in the specified directory."
 
-    - name: 准备发布文件 (Prepare Release Assets)
-      run: |
-        mkdir -p release_assets
-        cp immortalwrt/bin/targets/ramips/mt7621/*.bin release_assets/ || echo "No .bin files found in the specified directory."
+      - name: 获取当前编译时间 (Get Build Time)
+        id: get_time
+        run: |
+          BUILD_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
+          echo "build_time=$BUILD_TIME" >> $GITHUB_OUTPUT
 
-    - name: 获取当前编译时间 (Get Build Time)
-      id: get_time
-      run: |
-        BUILD_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
-        echo "build_time=$BUILD_TIME" >> $GITHUB_OUTPUT
+      - name: 发布至 GitHub Releases (Publish Release)
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          files: release_assets/*.bin
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v-{0}', github.run_id) || github.ref_name }}
+          name: ${{ github.event_name == 'workflow_dispatch' && format('手动编译版 #{0}', github.run_id) || github.ref_name }}
+          body: |
+            🚀 **ImmortalWrt 小米 R3G 自动编译固件**
+            
+            本固件基于 ImmortalWrt 官方源码自动编译，专为小米路由器 3G 定制，开箱即用。
+            
+            ### 📋 固件核心信息
 
-    - name: 发布至 GitHub Releases (Publish Release)
-      uses: softprops/action-gh-release@v2
-      # 如果是打标签触发，或者是手动触发，都执行发布操作
-      if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-      with:
-        files: release_assets/*.bin
-        # 核心修改：动态生成标签名
-        # 如果是手动触发，生成带有运行ID的标签（如 v-123456789），保证唯一性
-        # 如果是推送标签触发，则直接使用原有的真实标签名
-        tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v-{0}', github.run_id) || github.ref_name }}
-        # 美化 Release 标题
-        name: ${{ github.event_name == 'workflow_dispatch' && format('手动编译版 #{0}', github.run_id) || github.ref_name }}
-        # 美化后的 Release 说明文案
-        body: |
-          🚀 **ImmortalWrt 小米 R3G 自动编译固件**
-          
-          本固件基于 ImmortalWrt 官方源码自动编译，专为小米路由器 3G 定制，开箱即用。
-          
-          ### 📋 固件核心信息
-
-          | 属性 | 详情 |
-          | :--- | :--- |
-          | 📅 **编译时间** | ${{ steps.get_time.outputs.build_time }} (北京时间) |
-          | 📱 **设备型号** | 小米路由器 3G (Xiaomi R3G) |
-          | 🌿 **源码分支** | `openwrt-24.10` |
-          | 💾 **文件系统** | SquashFS |
-          
-          ### 🧩 内置特色插件
-          - 🎨 **Aurora 主题**：现代化 UI 设计，支持后台个性化控制面板。
-          - 📶 **QModem 5G**：专业的 5G/4G 模组管理工具，支持频段锁定与状态监控。
-          - 🔗 **UPnP**：通用即插即用，优化游戏与下载的网络体验。
-          - 💬 **WeChatPush**：微信推送服务，支持设备状态与网络异常实时通知。
-          
-          ### ⚠️ 刷机注意事项
-          > 1. 请确保在刷机前已备份重要配置。
-          > 2. 首次启动可能需要等待 1-3 分钟，请耐心等待系统初始化。
-          > 3. 默认 LAN IP：`192.168.10.1`，默认无密码，请登录后立即修改。
-          
-          ---
-          *此版本由 GitHub Actions 自动构建，如有疑问请提交 Issue。*
-        generate_release_notes: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            | 属性 | 详情 |
+            | :--- | :--- |
+            | 📅 **编译时间** | ${{ steps.get_time.outputs.build_time }} (北京时间) |
+            | 📱 **设备型号** | 小米路由器 3G (Xiaomi R3G) |
+            | 🌿 **源码分支** | `openwrt-24.10` |
+            | 💾 **文件系统** | SquashFS |
+            
+            ### 🧩 内置特色插件
+            - 🎨 **Aurora 主题**：现代化 UI 设计，支持后台个性化控制面板。
+            - 📶 **QModem 5G**：专业的 5G/4G 模组管理工具，支持频段锁定与状态监控。
+            - 🔗 **UPnP**：通用即插即用，优化游戏与下载的网络体验。
+            - 💬 **WeChatPush**：微信推送服务，支持设备状态与网络异常实时通知。
+            
+            ### ⚠️ 刷机注意事项
+            > 1. 请确保在刷机前已备份重要配置。
+            > 2. 首次启动可能需要等待 1-3 分钟，请耐心等待系统初始化。
+            > 3. 默认 LAN IP：`192.168.10.1`，默认无密码，请登录后立即修改。
+            
+            ---
+            *此版本由 GitHub Actions 自动构建，如有疑问请提交 Issue。*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
