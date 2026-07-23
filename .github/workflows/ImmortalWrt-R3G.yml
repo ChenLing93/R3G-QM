@@ -20,10 +20,15 @@ jobs:
       run: |
         sudo apt update -y
         sudo apt full-upgrade -y
-        sudo apt install -y build-essential ccache cmake automake autoconf \
-        bison flex gawk gettext git libncurses5-dev libncursesw5-dev \
-        libssl-dev python3 python3-pyelftools zlib1g-dev \
-        gcc-multilib g++-multilib pkgconf libtool lrzsz unzip wget rsync
+        # 使用 ImmortalWrt 官方推荐的依赖列表，更加完整
+        sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+          bzip2 ccache cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib \
+          g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev \
+          libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev \
+          libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano \
+          ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils \
+          python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs \
+          upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
 
     - name: 配置 Node.js 环境 (Setup Node.js)
       uses: actions/setup-node@v6
@@ -80,10 +85,16 @@ jobs:
 
     - name: 发布至 GitHub Releases (Publish Release)
       uses: softprops/action-gh-release@v2
-      # 修改条件：如果是打标签，或者是手动触发的，都执行发布操作
+      # 如果是打标签触发，或者是手动触发，都执行发布操作
       if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
       with:
         files: release_assets/*.bin
+        # 核心修改：动态生成标签名
+        # 如果是手动触发，生成带有运行ID的标签（如 v-123456789），保证唯一性
+        # 如果是推送标签触发，则直接使用原有的真实标签名
+        tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v-{0}', github.run_id) || github.ref_name }}
+        # 美化 Release 标题
+        name: ${{ github.event_name == 'workflow_dispatch' && format('手动编译版 #{0}', github.run_id) || github.ref_name }}
         # 美化后的 Release 说明文案
         body: |
           🚀 **ImmortalWrt 小米 R3G 自动编译固件**
@@ -96,7 +107,7 @@ jobs:
           | :--- | :--- |
           | 📅 **编译时间** | ${{ steps.get_time.outputs.build_time }} (北京时间) |
           | 📱 **设备型号** | 小米路由器 3G (Xiaomi R3G) |
-          | 🌿 **源码分支** | `OpenWrt-24.10` |
+          | 🌿 **源码分支** | `openwrt-24.10` |
           | 💾 **文件系统** | SquashFS |
           
           ### 🧩 内置特色插件
