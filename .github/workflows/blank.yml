@@ -52,6 +52,11 @@ jobs:
         cd immortalwrt
         make defconfig
 
+    - name: 执行自定义 DIY 脚本 (Run DIY Script)
+      run: |
+        chmod +x diy.sh
+        ./diy.sh
+
     - name: 下载依赖包 (Download Packages)
       run: |
         cd immortalwrt
