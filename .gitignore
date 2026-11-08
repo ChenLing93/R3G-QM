@@ -1,0 +1,6 @@
+# CI 产物
+release_assets/
+# 本地编译用的源码目录（不进本仓库）
+immortalwrt/
+# 编译日志
+*.log
