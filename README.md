@@ -42,6 +42,19 @@
 2. QModem 是 **feed**（仓库里有 `luci/` 和 `application/` 多个包），必须走 `src-git` + `feeds install`，不能直接 clone 到 `package/`。加 feed 的动作放在 `diy.sh` 里，因此 CI 的顺序是 **diy.sh → feeds update/install → defconfig**。
 3. 改 `diy.sh` 时注意 `set -euo pipefail`：任何一步失败都会让编译直接停下，这是刻意的。
 
+## 清理旧固件
+
+Releases 会一次构建攒一个。清理由**手动触发的 workflow** 负责，不挂在编译流程里自动跑：
+
+**Actions → `Cleanup Old Releases` → Run workflow**
+
+| 输入 | 说明 |
+| :--- | :--- |
+| `keep` | 保留最近几个 Release（默认 1；最新那个永远保留） |
+| `dry_run` | `true` = 只预览（默认），`false` = 真删 |
+
+规则：只动 tag 以 `v` 开头的 Release，连同它的 tag 和附件一起删；手工建的 Release 不碰。删了哪些、释放多少，看那次运行的 Summary。
+
 ## 刷机提醒
 
 > 1. 刷前备份原厂固件与 EEPROM；R3G 建议先有 breed 之类的救砖手段。

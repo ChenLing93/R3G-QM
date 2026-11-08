@@ -1,0 +1,145 @@
+name: Cleanup Old Releases
+
+# 只手动触发：Actions 页面点 Run workflow。
+# 作用：删掉旧的 Release（连同它的 tag 和附件），保留最近 N 个。
+# 默认 dry_run=true，只打印不删；确认没问题再改成 false 跑一次。
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: '保留最近多少个 Release（含最新那个）'
+        required: true
+        default: '1'
+      dry_run:
+        description: '只预览不删除：true = 预览，false = 真删'
+        required: true
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cleanup-releases
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: 清理旧 Release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: 列出并删除旧 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          KEEP: ${{ inputs.keep }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          # 参数保护
+          case "$KEEP" in
+            ''|*[!0-9]*) echo "::error::keep 必须是正整数，收到: $KEEP"; exit 1 ;;
+          esac
+          if [ "$KEEP" -lt 1 ]; then
+            echo "::error::keep 至少是 1（最新那个永远保留）"
+            exit 1
+          fi
+
+          MODE="预览（不会删）"
+          [ "$DRY_RUN" = "false" ] && MODE="真删"
+          echo "仓库: $REPO ｜ 保留最近: $KEEP 个 ｜ 模式: $MODE"
+
+          gh api --paginate "repos/$REPO/releases?per_page=100" \
+            --jq '.[] | [.id, .tag_name, (.assets | map(.size) | add // 0), .created_at] | @tsv' \
+            > /tmp/rels.tsv || true
+
+          TOTAL=$(wc -l < /tmp/rels.tsv | tr -d ' ')
+          echo "共找到 $TOTAL 个 Release"
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "没有 Release，无需清理"
+            exit 0
+          fi
+          if [ "$TOTAL" -le "$KEEP" ]; then
+            echo "数量不超过 $KEEP，无需清理"
+            {
+              echo "## 无需清理"
+              echo "共 $TOTAL 个 Release，保留规则 $KEEP 个。"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # created_at 是 ISO8601，字典序即时间序；倒序后最新在前
+          sort -t $'\t' -k4,4r /tmp/rels.tsv > /tmp/sorted.tsv
+
+          {
+            echo "## 清理结果"
+            echo ""
+            echo "| Release | 创建时间 | 大小 | 动作 |"
+            echo "| :--- | :--- | ---: | :--- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          KEPT=0
+          FREED=0
+          DELETED=0
+          SKIPPED=0
+
+          while IFS=$'\t' read -r id tag size created; do
+            KEPT=$((KEPT + 1))
+            if [ "$KEPT" -le "$KEEP" ]; then
+              echo "保留  $tag  ($created)"
+              printf '| `%s` | %s | %s | 保留 |\n' "$tag" "$created" "$(numfmt --to=iec --suffix=B "$size" 2>/dev/null || echo "${size}B")" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+
+            # 只动 v 开头的 tag，别人手工建的 Release 不碰
+            case "$tag" in
+              v*) ;;
+              *)
+                echo "跳过  $tag  (tag 不是 v 开头)"
+                printf '| `%s` | %s | - | 跳过（tag 非 v 开头）|\n' "$tag" "$created" >> "$GITHUB_STEP_SUMMARY"
+                SKIPPED=$((SKIPPED + 1))
+                continue
+                ;;
+            esac
+
+            if [ "$DRY_RUN" != "false" ]; then
+              echo "待删  $tag  ($created, ${size}B)"
+              printf '| `%s` | %s | %s | 待删（预览）|\n' "$tag" "$created" "$(numfmt --to=iec --suffix=B "$size" 2>/dev/null || echo "${size}B")" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+
+            echo "删除  $tag  ($created, ${size}B)"
+            if ! gh api -X DELETE "repos/$REPO/releases/$id" >/dev/null; then
+              echo "::warning::删 Release 失败: $tag"
+              printf '| `%s` | %s | - | 删除失败 |\n' "$tag" "$created" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+
+            # 删掉对应的远端 tag（可能已经不存在）
+            ENC=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1], safe=""))' "$tag")
+            if gh api -X DELETE "repos/$REPO/git/refs/tags/$ENC" >/dev/null 2>&1; then
+              TAG_NOTE="Release+tag 已删"
+            else
+              TAG_NOTE="Release 已删（tag 不存在或已删）"
+            fi
+
+            DELETED=$((DELETED + 1))
+            FREED=$((FREED + size))
+            printf '| `%s` | %s | %s | %s |\n' "$tag" "$created" "$(numfmt --to=iec --suffix=B "$size" 2>/dev/null || echo "${size}B")" "$TAG_NOTE" >> "$GITHUB_STEP_SUMMARY"
+          done < /tmp/sorted.tsv
+
+          {
+            echo ""
+            echo "保留最近 ${KEEP} 个；删除 ${DELETED} 个；跳过 ${SKIPPED} 个；释放约 $(numfmt --to=iec --suffix=B "$FREED" 2>/dev/null || echo "${FREED}B")"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$DRY_RUN" != "false" ]; then
+            echo ""
+            echo "这是预览，什么都没删。要真删：重跑这个 workflow，把 dry_run 改成 false。"
+          fi
