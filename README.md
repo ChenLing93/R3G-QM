@@ -1,4 +1,4 @@
-# 基于小米 R3G 的 ImmortalWrt 24.10（6.6 内核）· 带 5G QModem 管理器的自用固件 · bug 未知
+# 基于小米 R3G 的 ImmortalWrt 24.10（6.6 内核）· 带 5G QModem 管理器的自用固件 · bug 未知 蓝色大肥鱼完全自控版本   无测试
 
 ![启动界面](./images/logo.png)
 
