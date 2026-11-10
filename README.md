@@ -55,6 +55,16 @@ Releases 会一次构建攒一个。清理由**手动触发的 workflow** 负责
 
 规则：只动 tag 以 `v` 开头的 Release，连同它的 tag 和附件一起删；手工建的 Release 不碰。删了哪些、释放多少，看那次运行的 Summary。
 
+## 版本号里带编译时间
+
+编译时按北京时间取一个时间戳（`YYYYMMDD-HHMM`），写进 `CONFIG_VERSION_CODE`，最终落到固件的 `/etc/openwrt_release`：
+
+```
+DISTRIB_DESCRIPTION='ImmortalWrt 24.10-SNAPSHOT 20261111-0155'
+```
+
+LuCI **状态 → 概览** 里的「固件版本」显示的就是这一串，刷完机一眼能看出是哪一次编的。CI 在编译结束后会回读 rootfs 里的这个文件，对不上就直接失败、不发版。
+
 ## 刷机提醒
 
 > 1. 刷前备份原厂固件与 EEPROM；R3G 建议先有 breed 之类的救砖手段。

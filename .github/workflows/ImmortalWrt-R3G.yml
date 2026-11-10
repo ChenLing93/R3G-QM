@@ -77,11 +77,25 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: 载入 .config 并生成完整配置
+      - name: 载入 .config 并把编译时间写进固件版本
         run: |
           cp -f .config immortalwrt/.config
           cd immortalwrt
           make defconfig
+
+          # 时间戳放在 defconfig 之后再写：.config 会被 make 当顶层变量读，
+          # version.mk 里的 VERSION_CODE 就是从这里取的，最终落到 /etc/openwrt_release 的
+          # DISTRIB_DESCRIPTION（LuCI 状态页的「固件版本」就是它）。
+          # 写在 defconfig 之前会被 kconfig 当成未知符号清掉。
+          BUILD_STAMP="$(TZ=Asia/Shanghai date '+%Y%m%d-%H%M')"
+          echo "编译时间戳: ${BUILD_STAMP}（北京时间）"
+          {
+            echo 'CONFIG_VERSIONOPT=y'
+            echo "CONFIG_VERSION_CODE=\"${BUILD_STAMP}\""
+          } >> .config
+
+          echo '--- 版本变量 ---'
+          grep -E '^CONFIG_VERSION' .config
 
       # defconfig 会把源码/feed 里不存在的配置项静默丢掉，这里把丢弃项列出来，
       # 并对关键包做硬校验：少一个就直接失败，不产残废固件。
@@ -143,6 +157,29 @@ jobs:
           cd immortalwrt
           make -j"$(nproc)" V=s
 
+      # 版本串由 rootfs 里的 /etc/openwrt_release 生成，这里回读一次，
+      # 确认编译时间真的进了固件。没进就别发布——免得刷完分不清是哪次编的。
+      - name: 校验固件版本里带上了编译时间
+        run: |
+          STAMP="$(grep -oE '^CONFIG_VERSION_CODE=\"[^\"]+\"' immortalwrt/.config | cut -d'"' -f2)"
+          echo "期望的时间戳: ${STAMP}"
+
+          RELFILE="$(find immortalwrt/build_dir -type f -path '*/etc/openwrt_release' 2>/dev/null | head -n 1)"
+          if [ -z "$RELFILE" ]; then
+            echo "::warning::没找到 rootfs 里的 openwrt_release，跳过回读检查"
+            exit 0
+          fi
+
+          echo "--- ${RELFILE} ---"
+          cat "$RELFILE"
+
+          if grep -q "$STAMP" "$RELFILE"; then
+            echo "固件版本串里已经带上编译时间"
+          else
+            echo "::error::固件版本里没有编译时间（DISTRIB_DESCRIPTION 里找不到 ${STAMP}）"
+            exit 1
+          fi
+
       - name: 失败时上传日志
         if: failure()
         uses: actions/upload-artifact@v4
@@ -199,6 +236,7 @@ jobs:
           {
             echo "tag=$TAG"
             echo "build_time=$BUILD_TIME"
+            echo "version=$(grep -oE '^CONFIG_VERSION_CODE=\"[^\"]+\"' immortalwrt/.config | cut -d'"' -f2)"
           } >> "$GITHUB_OUTPUT"
           echo "Release 标签: $TAG （编译时间 $BUILD_TIME 北京时间）"
 
@@ -224,6 +262,7 @@ jobs:
             | :--- | :--- |
             | 🏷️ 标签 | `${{ steps.vars.outputs.tag }}` |
             | 📅 编译时间 | ${{ steps.vars.outputs.build_time }}（北京时间） |
+            | 🧾 固件版本串 | `ImmortalWrt 24.10-SNAPSHOT ${{ steps.vars.outputs.version }}`（LuCI 状态页可见） |
             | 🌿 源码 | `immortalwrt/immortalwrt` @ `openwrt-24.10` |
             | 💾 文件系统 | SquashFS |
             | 🔧 触发方式 | ${{ github.event_name }} / 运行 #${{ github.run_number }} |
