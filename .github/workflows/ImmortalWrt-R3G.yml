@@ -282,11 +282,12 @@ jobs:
 
             | 文件名 | 用途 |
             | :--- | :--- |
-            | `*squashfs-sysupgrade.bin` | 已在跑 ImmortalWrt/OpenWrt 时，系统内升级 |
-            | `*squashfs-factory.bin` | 从原厂固件 / 救砖模式刷入（R3G 走 breed 或 SSH 刷入） |
+            | `*squashfs-sysupgrade.bin` | **刷这个**。已在跑 ImmortalWrt/OpenWrt 时系统内升级；breed / SSH 刷入也用它 |
+            | `*initramfs-kernel.bin` | 救砖用：不写 flash，跑在内存里，进去再 sysupgrade |
+            | `*squashfs-kernel1.bin` / `*squashfs-rootfs0.bin` | UBI 分卷，一般不用手动刷 |
             | `sha256sums.txt` | 校验和，刷前先对一遍 |
 
-            > ⚠️ 刷机前请备份原厂固件与 EEPROM；首次启动需要 1–3 分钟。
+            > ⚠️ R3G 这个 target **不出 factory.bin**，别找它。刷机前请备份原厂固件与 EEPROM；首次启动需要 1–3 分钟。
             > 默认 LAN：`192.168.10.1`，主机名 `5G-QModem`，默认无密码，登录后请立即修改。
 
             ---

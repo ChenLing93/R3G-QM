@@ -15,9 +15,11 @@
 
 跑一次大约 40–80 分钟（首次无缓存），产物：
 
-- `*-squashfs-sysupgrade.bin` —— 已经是 OpenWrt/ImmortalWrt 时系统内升级用
-- `*-squashfs-factory.bin` —— 从原厂固件 / 救砖刷入用
+- `*-squashfs-sysupgrade.bin` —— **刷这个**：已跑 OpenWrt/ImmortalWrt 时升级用，breed / SSH 刷入也用它
+- `*-initramfs-kernel.bin` —— 救砖用：不写 flash，跑在内存里，进去再 sysupgrade
 - `sha256sums.txt` —— 刷前先对校验和
+
+> R3G 这个 target **不出 factory.bin**（别再找了）。
 
 ## 仓库里有什么
 
